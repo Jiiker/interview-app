@@ -7,18 +7,32 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
+// 새 카테고리 추가
+export const addCategory = async (category) => {
+  try {
+    await addDoc(collection(db, "categories"), { name: category });
+  } catch (error) {
+    console.error("Error adding category:", error);
+  }
+};
+
+// 카테고리 가져오기
+export const getCategories = async () => {
+  const querySnapshot = await getDocs(collection(db, "categories"));
+  return querySnapshot.docs.map((doc) => doc.data().name);
+};
+
 // 질문 추가
 export const addQuestion = async (category, question) => {
   try {
-    const docRef = await addDoc(collection(db, "questions"), {
+    await addDoc(collection(db, "questions"), {
       category,
       question,
       completed: false,
       createdAt: new Date(),
     });
-    return docRef.id;
   } catch (error) {
-    console.error("Error adding document: ", error);
+    console.error("Error adding question:", error);
   }
 };
 
