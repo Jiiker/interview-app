@@ -107,7 +107,6 @@ export const createInterview = async (questions) => {
       ...question,
       interviewees: [],
       feedbacks: [],
-      isCompleted: false,
     }));
 
     await set(ref(db, `interviews/${newInterviewRef.key}`), {
@@ -324,6 +323,46 @@ export const addFeedbackToQuestion = async (
     return updatedQuestions;
   } catch (error) {
     console.error("피드백 추가 중 오류:", error);
+    throw error;
+  }
+};
+
+// 면접 완료
+export const completeInterview = async (interviewId) => {
+  try {
+    const interviewRef = ref(db, `interviews/${interviewId}`);
+    const interviewSnapshot = await get(interviewRef);
+
+    if (!interviewSnapshot.exists()) {
+      throw new Error("면접 정보를 찾을 수 없습니다.");
+    }
+
+    const interview = interviewSnapshot.val();
+    const questions = interview.questions || [];
+
+    // 모든 질문을 완료 상태로 변경
+    const updatedQuestions = questions.map((q) => ({
+      ...q,
+      completed: true,
+    }));
+
+    // 면접 질문 상태 업데이트
+    await update(interviewRef, {
+      isFinished: true,
+      questions: updatedQuestions,
+    });
+
+    // 전역 질문 리스트(`questions/` 경로)에서도 상태 업데이트
+    for (const question of updatedQuestions) {
+      if (question.id) {
+        await updateQuestionStatus(question.id, true);
+      }
+    }
+
+    console.log("면접 완료 처리 및 질문 상태 업데이트 완료:", interviewId);
+    return true;
+  } catch (error) {
+    console.error("면접 완료 처리 중 오류:", error);
     throw error;
   }
 };

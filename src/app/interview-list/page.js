@@ -19,10 +19,10 @@ export default function InterviewListPage() {
     fetchInterviews();
   }, []);
 
-  const sortedInterviews = [...interviews].sort((a, b) => {
-    return sortOrder === "latest"
-      ? b.date.localeCompare(a.date)
-      : a.date.localeCompare(b.date);
+  const sortedInterviews = (interviews || []).sort((a, b) => {
+    const titleA = a.title || "";
+    const titleB = b.title || "";
+    return titleA.localeCompare(titleB);
   });
 
   return (

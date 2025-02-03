@@ -6,11 +6,11 @@ import {
   getQuestions,
   updateQuestionStatus,
   deleteQuestion,
+  createInterview, // 면접 생성 함수 추가
 } from "@/lib/firestore";
 import { Trash2, User } from "lucide-react";
 import AddQuestionModal from "./components/AddQuestionModal";
 import DeleteConfirmationModal from "./components/DeleteConfirmationModal";
-import InterviewStartModal from "./components/InterviewStartModal";
 
 const CATEGORIES = [
   "CS",
@@ -31,7 +31,6 @@ export default function Home() {
     questionText: "",
   });
   const router = useRouter();
-  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,6 +56,24 @@ export default function Home() {
       setDeleteModal({ isOpen: false, questionId: null, questionText: "" });
     } catch (error) {
       alert("질문 삭제 중 오류가 발생했습니다: " + error.message);
+    }
+  };
+
+  const handleStartInterview = async () => {
+    try {
+      if (!questions || questions.length === 0) {
+        alert("면접을 시작할 수 없습니다. 질문을 추가해주세요.");
+        return;
+      }
+
+      // 백엔드에서 질문을 자동 선택하여 면접을 생성 (질문 리스트 전달)
+      const interviewId = await createInterview(questions);
+
+      // 생성된 면접 상세 페이지로 이동
+      router.push(`/interview-list/${interviewId}`);
+    } catch (error) {
+      console.error("면접 생성 중 오류:", error);
+      alert("면접을 시작할 수 없습니다. 다시 시도해주세요.");
     }
   };
 
@@ -100,7 +117,7 @@ export default function Home() {
             질문 추가
           </button>
           <button
-            onClick={() => setIsInterviewModalOpen(true)}
+            onClick={handleStartInterview}
             className='bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600'
           >
             면접 시작
@@ -172,11 +189,6 @@ export default function Home() {
         }
         onConfirm={handleDelete}
         questionText={deleteModal.questionText}
-      />
-      <InterviewStartModal
-        isOpen={isInterviewModalOpen}
-        onClose={() => setIsInterviewModalOpen(false)}
-        questions={questions}
       />
     </main>
   );

@@ -9,6 +9,7 @@ import {
   assignInterviewees,
   updateInterviewStatus,
   addFeedbackToQuestion,
+  completeInterview,
 } from "@/lib/firestore";
 import Comment from "./components/Comment";
 
@@ -111,6 +112,7 @@ const InterviewProgress = ({
   onComplete,
   onAddFeedback, // 🔥 피드백 추가 함수
 }) => {
+  const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [name, setName] = useState(""); // 이름 입력 필드
   const [content, setContent] = useState(""); // 내용 입력 필드
@@ -143,6 +145,16 @@ const InterviewProgress = ({
 
     setName(""); // 입력 필드 초기화
     setContent("");
+  };
+
+  const handleCompleteInterview = async () => {
+    try {
+      await completeInterview(interview.id);
+
+      router.push("/interview-list");
+    } catch (error) {
+      console.error("면접 완료 처리 중 오류:", error);
+    }
   };
 
   return (
@@ -236,14 +248,22 @@ const InterviewProgress = ({
               이전 질문
             </button>
           )}
-          <button
-            onClick={handleNext}
-            className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'
-          >
-            {currentQuestionIndex < questions.length - 1
-              ? "다음 질문"
-              : "면접 완료"}
-          </button>
+
+          {currentQuestionIndex < questions.length - 1 ? (
+            <button
+              onClick={handleNext}
+              className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'
+            >
+              다음 질문
+            </button>
+          ) : (
+            <button
+              onClick={handleCompleteInterview}
+              className='px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600'
+            >
+              면접 완료
+            </button>
+          )}
         </div>
       </div>
     </div>
