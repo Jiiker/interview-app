@@ -6,10 +6,11 @@ import {
   getInterview,
   updateInterviewStep,
   updateInterviewees,
-  updateQuestionResult,
-  assignRandomQuestionsToInterviewees,
-  completeInterview,
+  assignInterviewees,
+  updateInterviewStatus,
+  addFeedbackToQuestion,
 } from "@/lib/firestore";
+import Comment from "./components/Comment";
 
 const QuestionList = ({ questions, onNext }) => {
   const questionsArray = Array.isArray(questions)
@@ -108,26 +109,40 @@ const InterviewProgress = ({
   interview,
   onUpdateResult,
   onComplete,
+  onAddFeedback, // 🔥 피드백 추가 함수
 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [feedback, setFeedback] = useState("");
+  const [name, setName] = useState(""); // 이름 입력 필드
+  const [content, setContent] = useState(""); // 내용 입력 필드
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const assignedInterviewees = currentQuestion.assignedInterviewees || [];
+  // 🔥 배정된 면접자 리스트
+  const assignedInterviewees = currentQuestion.interviewees || [];
+  const feedbacks = currentQuestion.feedbacks || [];
+
+  console.log({ interview });
 
   const handleNext = async () => {
     await onUpdateResult(currentQuestion.id, {
-      feedback,
       completed: true,
     });
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
-      setFeedback("");
     } else {
-      onComplete();
+      onComplete(currentQuestion.id, true);
     }
+  };
+
+  // 🔥 피드백 추가 함수
+  const handleFeedbackSubmit = async () => {
+    if (!name.trim() || !content.trim()) return;
+
+    await onAddFeedback(currentQuestion.id, { name, content });
+
+    setName(""); // 입력 필드 초기화
+    setContent("");
   };
 
   return (
@@ -138,38 +153,78 @@ const InterviewProgress = ({
         </h3>
         <p className='text-xl mb-6'>{currentQuestion.question}</p>
 
+        {/* 🔥 배정된 면접자 섹션 복원 */}
         <div className='mb-4'>
           <h4 className='text-md font-medium mb-2'>배정된 면접자</h4>
           <div className='grid grid-cols-3 gap-2'>
-            {assignedInterviewees.map((intervieweeId) => {
-              const interviewee = interview.interviewees.find(
-                (i) => i.id === intervieweeId
-              );
+            {assignedInterviewees.length > 0 ? (
+              assignedInterviewees.map((intervieweeId) => {
+                const interviewee = interview.interviewees.find(
+                  (i) => i.id === intervieweeId
+                );
 
-              return (
-                <div
-                  key={intervieweeId}
-                  className='p-2 rounded-lg bg-blue-100 border-blue-500'
-                >
-                  {interviewee
-                    ? interviewee.name
-                    : `알 수 없는 면접자 (${intervieweeId})`}
-                </div>
-              );
-            })}
+                return (
+                  <div
+                    key={intervieweeId}
+                    className='p-2 rounded-lg bg-blue-100 border-blue-500'
+                  >
+                    {interviewee
+                      ? interviewee.name
+                      : `알 수 없는 면접자 (${intervieweeId})`}
+                  </div>
+                );
+              })
+            ) : (
+              <p className='text-gray-500 text-sm'>배정된 면접자가 없습니다.</p>
+            )}
           </div>
         </div>
 
+        {/* 🔥 피드백 입력 폼 */}
         <div className='mb-4'>
-          <label className='block text-md font-medium mb-2'>
-            질문에 대한 전체 피드백
-          </label>
+          <h4 className='text-md font-medium mb-2'>피드백 작성</h4>
+          <label className='block text-sm font-medium'>이름</label>
+          <input
+            type='text'
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder='이름을 입력하세요.'
+            className='w-full p-2 border rounded-lg'
+          />
+
+          <label className='block text-sm font-medium mt-4'>내용</label>
           <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder='질문에 대한 전반적인 피드백을 입력하세요.'
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder='피드백을 입력하세요.'
             className='w-full p-2 border rounded-lg h-24'
           />
+
+          <button
+            onClick={handleFeedbackSubmit} // 🔥 피드백 추가
+            className='mt-3 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600'
+          >
+            작성 완료
+          </button>
+        </div>
+
+        {/* 🔥 기존 피드백 목록 */}
+        <div className='mb-4'>
+          <h4 className='text-md font-medium mb-2'>작성된 피드백</h4>
+          {feedbacks.length > 0 ? (
+            feedbacks.map((fb) => (
+              <Comment
+                key={fb.id}
+                name={fb.name}
+                content={fb.content}
+                timestamp={fb.timestamp}
+              />
+            ))
+          ) : (
+            <p className='text-gray-500 text-sm'>
+              아직 작성된 피드백이 없습니다.
+            </p>
+          )}
         </div>
 
         <div className='flex justify-end space-x-2'>
@@ -216,34 +271,62 @@ export default function InterviewDetail() {
     setCurrentStep(newStep);
   };
 
-  const handleAddInterviewee = async (name) => {
-    const newInterviewee = {
-      id: Date.now().toString(),
-      name,
-    };
-
-    const updatedInterviewees = [...interviewees, newInterviewee];
-    setInterviewees(updatedInterviewees);
-
+  const handlePrepareInterview = async () => {
     try {
-      await updateInterviewees(interview.id, updatedInterviewees);
+      await updateInterviewees(interview.id, interviewees);
+      await assignInterviewees(interview.id, interviewees);
+
+      const updatedInterview = await getInterview(interview.id);
+      setInterview(updatedInterview);
+
+      updateStep(3);
     } catch (error) {
-      console.error("면접자 업데이트 중 오류:", error);
+      console.error("면접 준비 과정 중 오류:", error);
     }
   };
 
-  const handlePrepareInterview = async () => {
-    await assignRandomQuestionsToInterviewees(interview.id);
-    updateStep(3);
+  const handleAddInterviewee = async (name) => {
+    try {
+      const newInterviewee = {
+        id: Date.now().toString(),
+        name,
+      };
+
+      const updatedInterviewees = [...interviewees, newInterviewee];
+      setInterviewees(updatedInterviewees);
+
+      await updateInterviewees(interview.id, updatedInterviewees);
+    } catch (error) {
+      console.error("면접자 추가 중 오류:", error);
+    }
   };
 
   const handleUpdateResult = async (questionId, resultData) => {
-    await updateQuestionResult(interview.id, questionId, resultData);
+    try {
+      const updatedQuestions = interview.questions.map((q) =>
+        q.id === questionId ? { ...q, ...resultData } : q
+      );
+
+      await updateInterviewStatus(interview.id, {
+        questions: updatedQuestions,
+      });
+
+      const updatedInterview = await getInterview(interview.id);
+      setInterview(updatedInterview);
+    } catch (error) {
+      console.error("질문 결과 업데이트 중 오류:", error);
+    }
   };
 
-  const handleComplete = async () => {
-    await completeInterview(interview.id);
-    router.push("/interview-list");
+  const handleAddFeedback = async (questionId, feedback) => {
+    try {
+      await addFeedbackToQuestion(interview.id, questionId, feedback);
+
+      const updatedInterview = await getInterview(interview.id);
+      setInterview(updatedInterview);
+    } catch (error) {
+      console.error("피드백 추가 중 오류:", error);
+    }
   };
 
   if (!interview) return <div className='p-6'>로딩 중...</div>;
@@ -269,7 +352,8 @@ export default function InterviewDetail() {
           questions={interview.questions}
           interview={{ ...interview, interviewees }}
           onUpdateResult={handleUpdateResult}
-          onComplete={handleComplete}
+          onComplete={updateInterviewStatus}
+          onAddFeedback={handleAddFeedback}
         />
       )}
     </div>
