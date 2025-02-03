@@ -57,11 +57,11 @@ export default function InterviewStartModal({ isOpen, onClose, questions }) {
       className='fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50'
       onClick={(e) => e.stopPropagation()}
     >
-      <div className='bg-white p-6 rounded-lg w-[48rem] overflow-y-auto'>
+      <div className='bg-white p-6 rounded-lg w-[48rem]'>
         <h2 className='text-2xl font-bold mb-4'>면접 질문 목록</h2>
 
         {selectedQuestions.length === 6 ? (
-          <>
+          <div className='max-h-[80vh] overflow-y-auto'>
             <div className='mb-6 text-gray-600'>
               총 6개의 질문이 선택되었습니다. (기본 질문 1개 + 기술 질문 5개)
             </div>
@@ -77,7 +77,7 @@ export default function InterviewStartModal({ isOpen, onClose, questions }) {
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         ) : (
           <div className='text-center py-8 text-gray-600'>
             선택 가능한 질문이 충분하지 않습니다. <br />
