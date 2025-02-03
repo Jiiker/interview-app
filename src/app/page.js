@@ -7,7 +7,7 @@ import {
   updateQuestionStatus,
   deleteQuestion,
 } from "@/lib/firestore";
-import { Trash2 } from "lucide-react";
+import { Trash2, User } from "lucide-react";
 import AddQuestionModal from "./components/AddQuestionModal";
 import DeleteConfirmationModal from "./components/DeleteConfirmationModal";
 import InterviewStartModal from "./components/InterviewStartModal";
@@ -66,7 +66,16 @@ export default function Home() {
 
   return (
     <main className='p-6 max-w-2xl mx-auto'>
-      <h1 className='text-2xl font-bold mb-6'>면접 질문 목록</h1>
+      <div className='flex justify-between items-center mb-6'>
+        <h1 className='text-2xl font-bold'>면접 질문 목록</h1>
+        <button
+          onClick={() => router.push("/interview-list")}
+          className='p-2 rounded-full bg-gray-100 hover:bg-gray-200'
+          aria-label='마이페이지'
+        >
+          <User className='w-6 h-6 text-gray-700' />
+        </button>
+      </div>
 
       {/* 상단 필터와 버튼 */}
       <div className='flex justify-between items-center mb-6'>
