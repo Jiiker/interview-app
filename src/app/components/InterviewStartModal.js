@@ -1,22 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createInterview } from "@/lib/firestore";
+import { useRouter } from "next/navigation";
 
 export default function InterviewStartModal({ isOpen, onClose, questions }) {
   const [selectedQuestions, setSelectedQuestions] = useState([]);
-
-  // 배경 스크롤 방지
-  useEffect(() => {
-    if (isOpen) {
-      document.documentElement.classList.add("overflow-hidden");
-    } else {
-      document.documentElement.classList.remove("overflow-hidden");
-    }
-
-    return () => {
-      document.documentElement.classList.remove("overflow-hidden");
-    };
-  }, [isOpen]);
+  const router = useRouter();
 
   useEffect(() => {
     if (isOpen) {
@@ -49,6 +39,22 @@ export default function InterviewStartModal({ isOpen, onClose, questions }) {
       ]);
     }
   }, [isOpen, questions]);
+
+  const handleStartInterview = async () => {
+    try {
+      // 면접 생성 및 ID 받기
+      const interviewId = await createInterview(selectedQuestions);
+
+      // 면접 상세 페이지로 라우팅
+      router.push(`/interview-list/${interviewId}`);
+
+      // 모달 닫기
+      onClose();
+    } catch (error) {
+      console.error("면접 생성 중 오류:", error);
+      alert("면접을 시작할 수 없습니다. 다시 시도해주세요.");
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -94,10 +100,7 @@ export default function InterviewStartModal({ isOpen, onClose, questions }) {
           </button>
           {selectedQuestions.length === 6 && (
             <button
-              onClick={() => {
-                // TODO: 면접 시작 로직 구현
-                onClose();
-              }}
+              onClick={handleStartInterview}
               className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'
             >
               면접 시작하기

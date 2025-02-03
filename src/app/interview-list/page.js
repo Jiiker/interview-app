@@ -53,7 +53,7 @@ export default function InterviewListPage() {
             <InterviewCard
               key={interview.id}
               interview={interview}
-              onClick={() => router.push(`/interview-detail/${interview.id}`)}
+              onClick={() => router.push(`/interview-list/${interview.id}`)}
             />
           ))
         ) : (

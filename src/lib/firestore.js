@@ -34,7 +34,7 @@ export const getQuestions = async () => {
         ...data,
       }));
     } else {
-      console.warn("⚠️ No questions found in Realtime Database.");
+      console.warn("No questions found in Realtime Database.");
       return [];
     }
   } catch (error) {
@@ -76,37 +76,47 @@ export const deleteQuestion = async (id) => {
 };
 
 // 면접 생성 함수
-export const createInterview = async (selectedQuestions) => {
-  if (!selectedQuestions || selectedQuestions.length === 0) {
-    throw new Error("면접 질문이 필요합니다.");
-  }
-
+export const createInterview = async (questions) => {
   try {
-    const newInterviewRef = push(ref(db, "interviews"));
-    const currentDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD 형식
+    const uncompletedQuestions = questions.filter((q) => !q.completed);
+    const basicQuestions = uncompletedQuestions.filter(
+      (q) => q.category === "기본(경험)"
+    );
+    const technicalQuestions = uncompletedQuestions.filter(
+      (q) => q.category !== "기본(경험)"
+    );
 
-    // 각 질문에 대한 결과 객체 초기화
-    const questionResults = selectedQuestions.reduce((acc, question) => {
-      acc[question.id] = {
-        questionId: question.id,
-        question: question.question,
-        category: question.category,
-        assignedInterviewees: [], // 배정된 면접자 목록
-        feedback: "", // 면접관 피드백
-        completed: false, // 해당 질문 완료 여부
-      };
-      return acc;
-    }, {});
+    const selectedBasicQuestion =
+      basicQuestions.length > 0
+        ? basicQuestions[Math.floor(Math.random() * basicQuestions.length)]
+        : null;
+
+    const selectedTechnicalQuestions = technicalQuestions
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 5);
+
+    const selectedQuestions = [
+      ...(selectedBasicQuestion ? [selectedBasicQuestion] : []),
+      ...selectedTechnicalQuestions,
+    ];
+
+    const newInterviewRef = push(ref(db, "interviews"));
+    const currentDate = new Date().toISOString().split("T")[0];
+
+    const interviewQuestions = selectedQuestions.map((question) => ({
+      ...question,
+      interviewees: [],
+      feedbacks: [],
+      isCompleted: false,
+    }));
 
     await set(ref(db, `interviews/${newInterviewRef.key}`), {
-      questions: selectedQuestions,
-      date: currentDate,
-      status: "in_progress", // in_progress, completed
-      currentStep: 1, // 1: 질문목록, 2: 면접자입력, 3: 면접진행
-      interviewees: [], // 전체 면접자 목록
-      results: questionResults, // 질문별 결과
-      comments: [], // 면접 중 발생한 이슈/코멘트
+      title: `${currentDate}일자 질문`,
+      questions: interviewQuestions,
+      interviewees: [],
       createdAt: Date.now(),
+      isFinished: false,
+      currentStep: 1,
     });
 
     return newInterviewRef.key;
@@ -116,97 +126,12 @@ export const createInterview = async (selectedQuestions) => {
   }
 };
 
-// 질문에 면접자 배정 함수
-export const assignInterviewees = async (
-  interviewId,
-  questionId,
-  intervieweeIds
-) => {
-  if (!interviewId || !questionId || !intervieweeIds) {
-    throw new Error("면접 ID, 질문 ID, 면접자 ID가 필요합니다.");
-  }
-
-  try {
-    const resultPath = `interviews/${interviewId}/results/${questionId}/assignedInterviewees`;
-    await set(ref(db, resultPath), intervieweeIds);
-    return true;
-  } catch (error) {
-    console.error("면접자 배정 중 오류:", error);
-    throw error;
-  }
-};
-
-// 질문 결과 업데이트 함수
-export const updateQuestionResult = async (
-  interviewId,
-  questionId,
-  updateData
-) => {
-  if (!interviewId || !questionId || !updateData) {
-    throw new Error("면접 ID, 질문 ID, 업데이트할 데이터가 필요합니다.");
-  }
-
-  try {
-    const resultPath = `interviews/${interviewId}/results/${questionId}`;
-    await update(ref(db, resultPath), updateData);
-    return true;
-  } catch (error) {
-    console.error("질문 결과 업데이트 중 오류:", error);
-    throw error;
-  }
-};
-
-// 면접자 추가 함수
-export const addInterviewee = async (interviewId, interviewee) => {
-  if (!interviewId || !interviewee) {
-    throw new Error("면접 ID와 면접자 정보가 필요합니다.");
-  }
-
-  try {
-    const interviewRef = ref(db, `interviews/${interviewId}/interviewees`);
-    const snapshot = await get(interviewRef);
-    const currentInterviewees = snapshot.exists() ? snapshot.val() : [];
-
-    const updatedInterviewees = [
-      ...currentInterviewees,
-      {
-        ...interviewee,
-        id: push(ref(db)).key, // 면접자별 고유 ID 생성
-        addedAt: Date.now(),
-      },
-    ];
-
-    await set(interviewRef, updatedInterviewees);
-    return true;
-  } catch (error) {
-    console.error("면접자 추가 중 오류:", error);
-    throw error;
-  }
-};
-
-// 면접 상태 업데이트 함수 (진행중/완료)
-export const updateInterviewStatus = async (interviewId, status) => {
-  if (!interviewId || !["in_progress", "completed"].includes(status)) {
-    throw new Error("유효하지 않은 면접 상태입니다.");
-  }
-
-  try {
-    await update(ref(db, `interviews/${interviewId}`), { status });
-    return true;
-  } catch (error) {
-    console.error("면접 상태 업데이트 중 오류:", error);
-    throw error;
-  }
-};
-
 // 면접 단계 업데이트 함수
 export const updateInterviewStep = async (interviewId, step) => {
-  if (!interviewId || ![1, 2, 3].includes(step)) {
-    throw new Error("유효하지 않은 면접 단계입니다.");
-  }
-
   try {
-    await update(ref(db, `interviews/${interviewId}`), { currentStep: step });
+    await update(ref(db, `interviews/${interviewId}`), {
+      currentStep: step,
+    });
     return true;
   } catch (error) {
     console.error("면접 단계 업데이트 중 오류:", error);
@@ -214,65 +139,7 @@ export const updateInterviewStep = async (interviewId, step) => {
   }
 };
 
-// 면접 코멘트 추가 함수
-export const addInterviewComment = async (interviewId, comment) => {
-  if (!interviewId || !comment) {
-    throw new Error("면접 ID와 코멘트 내용이 필요합니다.");
-  }
-
-  try {
-    const commentRef = ref(db, `interviews/${interviewId}/comments`);
-    const snapshot = await get(commentRef);
-    const currentComments = snapshot.exists() ? snapshot.val() : [];
-
-    const updatedComments = [
-      ...currentComments,
-      {
-        ...comment,
-        id: push(ref(db)).key, // 코멘트별 고유 ID 생성
-        createdAt: Date.now(),
-      },
-    ];
-
-    await set(commentRef, updatedComments);
-    return true;
-  } catch (error) {
-    console.error("코멘트 추가 중 오류:", error);
-    throw error;
-  }
-};
-
-// 면접 삭제 함수
-export const deleteInterview = async (interviewId) => {
-  if (!interviewId) {
-    throw new Error("면접 ID가 필요합니다.");
-  }
-
-  try {
-    await remove(ref(db, `interviews/${interviewId}`));
-    return true;
-  } catch (error) {
-    console.error("면접 삭제 중 오류:", error);
-    throw error;
-  }
-};
-
-// 면접 정보 가져오기 함수
-export const getInterview = async (interviewId) => {
-  try {
-    const snapshot = await get(ref(db, `interviews/${interviewId}`));
-    if (snapshot.exists()) {
-      return { id: interviewId, ...snapshot.val() };
-    } else {
-      throw new Error("면접 정보를 찾을 수 없습니다.");
-    }
-  } catch (error) {
-    console.error("면접 정보 조회 중 오류:", error);
-    throw error;
-  }
-};
-
-// 모든 면접 목록 가져오기 함수
+// 면접 목록 불러오기 함수
 export const getInterviews = async () => {
   try {
     const snapshot = await get(ref(db, "interviews"));
@@ -285,6 +152,144 @@ export const getInterviews = async () => {
     return [];
   } catch (error) {
     console.error("면접 목록 조회 중 오류:", error);
+    throw error;
+  }
+};
+
+// 면접 상세 불러오기 함수
+export const getInterview = async (interviewId) => {
+  try {
+    const snapshot = await get(ref(db, `interviews/${interviewId}`));
+    if (snapshot.exists()) {
+      return {
+        id: interviewId,
+        ...snapshot.val(),
+      };
+    }
+    throw new Error("면접 정보를 찾을 수 없습니다.");
+  } catch (error) {
+    console.error("면접 상세 조회 중 오류:", error);
+    throw error;
+  }
+};
+
+// 면접 삭제 함수
+export const deleteInterview = async (interviewId) => {
+  try {
+    const interview = await getInterview(interviewId);
+
+    // 포함된 질문들 상태 초기화
+    for (const question of interview.questions) {
+      await updateQuestionStatus(question.id, false);
+    }
+
+    await remove(ref(db, `interviews/${interviewId}`));
+    return true;
+  } catch (error) {
+    console.error("면접 삭제 중 오류:", error);
+    throw error;
+  }
+};
+
+// 면접 상태 변경 함수
+export const updateInterviewStatus = async (interviewId, status) => {
+  try {
+    await update(ref(db, `interviews/${interviewId}`), {
+      isFinished: status,
+    });
+    return true;
+  } catch (error) {
+    console.error("면접 상태 업데이트 중 오류:", error);
+    throw error;
+  }
+};
+
+// 면접 면접자 업데이트 함수
+export const updateInterviewees = async (interviewId, interviewees) => {
+  try {
+    await update(ref(db, `interviews/${interviewId}`), {
+      interviewees: interviewees,
+      currentStep: 2,
+    });
+    return true;
+  } catch (error) {
+    console.error("면접자 업데이트 중 오류:", error);
+    throw error;
+  }
+};
+
+// 면접자 배정 함수
+export const assignInterviewees = async (interviewId, interviewees) => {
+  try {
+    const interviewRef = ref(db, `interviews/${interviewId}/questions`);
+
+    await update(
+      interviewRef,
+      questions.map((q) => ({
+        ...q,
+        interviewees: interviewees,
+      }))
+    );
+
+    return true;
+  } catch (error) {
+    console.error("면접자 배정 중 오류:", error);
+    throw error;
+  }
+};
+
+export const assignRandomQuestionsToInterviewees = async (interviewId) => {
+  try {
+    const interviewSnapshot = await get(ref(db, `interviews/${interviewId}`));
+    const interview = interviewSnapshot.val();
+    const interviewees = interview.interviewees;
+    const questions = interview.questions;
+
+    const technicalQuestions = questions.filter(
+      (q) => q.category !== "기본(경험)"
+    );
+
+    const assignedQuestions = questions.map((question) => {
+      if (question.category === "기본(경험)") {
+        return {
+          ...question,
+          assignedInterviewees: interviewees.map((i) => i.id),
+        };
+      }
+      return question;
+    });
+
+    const shuffledTechnicalQuestions = technicalQuestions.sort(
+      () => 0.5 - Math.random()
+    );
+    const shuffledInterviewees = interviewees.sort(() => 0.5 - Math.random());
+
+    shuffledInterviewees.forEach((interviewee, index) => {
+      const questionsToAssign = shuffledTechnicalQuestions
+        .slice(index * 2, index * 2 + 2)
+        .map((q) => q.id);
+
+      questionsToAssign.forEach((qId) => {
+        const questionIndex = assignedQuestions.findIndex((q) => q.id === qId);
+        if (questionIndex !== -1) {
+          if (!assignedQuestions[questionIndex].assignedInterviewees) {
+            assignedQuestions[questionIndex].assignedInterviewees = [];
+          }
+          assignedQuestions[questionIndex].assignedInterviewees.push(
+            interviewee.id
+          );
+        }
+      });
+    });
+
+    await update(ref(db, `interviews/${interviewId}`), {
+      questions: assignedQuestions,
+      currentStep: 3,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("면접자 랜덤 질문 배정 중 오류:", error);
     throw error;
   }
 };
