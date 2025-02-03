@@ -5,21 +5,37 @@ import { useRouter } from "next/navigation";
 import {
   getQuestions,
   updateQuestionStatus,
-  getCategories,
+  deleteQuestion,
 } from "@/lib/firestore";
+import { Trash2 } from "lucide-react";
 import AddQuestionModal from "./components/AddQuestionModal";
+import DeleteConfirmationModal from "./components/DeleteConfirmationModal";
+import InterviewStartModal from "./components/InterviewStartModal";
+
+const CATEGORIES = [
+  "CS",
+  "HTML/CSS",
+  "JavaScript",
+  "TypeScript",
+  "React",
+  "기본(경험)",
+];
 
 export default function Home() {
   const [questions, setQuestions] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    questionId: null,
+    questionText: "",
+  });
   const router = useRouter();
+  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
-      const fetchedCategories = await getCategories();
       const fetchedQuestions = await getQuestions();
-      setCategories(fetchedCategories);
       setQuestions(fetchedQuestions);
     };
     fetchData();
@@ -32,47 +48,78 @@ export default function Home() {
     );
   };
 
+  const handleDelete = async () => {
+    try {
+      await deleteQuestion(deleteModal.questionId);
+      setQuestions((prev) =>
+        prev.filter((q) => q.id !== deleteModal.questionId)
+      );
+      setDeleteModal({ isOpen: false, questionId: null, questionText: "" });
+    } catch (error) {
+      alert("질문 삭제 중 오류가 발생했습니다: " + error.message);
+    }
+  };
+
+  // 필터링된 카테고리 목록 생성
+  const filteredCategories =
+    selectedCategory === "전체" ? CATEGORIES : [selectedCategory];
+
   return (
     <main className='p-6 max-w-2xl mx-auto'>
       <h1 className='text-2xl font-bold mb-6'>면접 질문 목록</h1>
 
-      {/* 상단 버튼 */}
-      <div className='flex justify-between mb-6'>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className='bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600'
+      {/* 상단 필터와 버튼 */}
+      <div className='flex justify-between items-center mb-6'>
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className='px-4 py-2 border rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200'
         >
-          질문 추가
-        </button>
-        <button
-          onClick={() => router.push("/mock-interview")}
-          className='bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600'
-        >
-          면접 시작
-        </button>
+          <option value='전체'>전체 카테고리</option>
+          {CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+
+        <div className='flex gap-2'>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className='bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500'
+          >
+            질문 추가
+          </button>
+          <button
+            onClick={() => setIsInterviewModalOpen(true)}
+            className='bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600'
+          >
+            면접 시작
+          </button>
+        </div>
       </div>
 
       {/* 카테고리별 질문 리스트 */}
-      {categories.length > 0 ? (
-        categories.map((category) => (
-          <div key={category} className='mb-6'>
-            <h2 className='text-xl font-semibold mb-3'>{category}</h2>
-            <ul className='space-y-2'>
-              {questions.filter((q) => q.category === category).length > 0 ? (
-                questions
-                  .filter((q) => q.category === category)
-                  .map((question) => (
-                    <li
-                      key={question.id}
-                      className='flex items-center space-x-2'
-                    >
+      {filteredCategories.map((category) => (
+        <div key={category} className='mb-6'>
+          <h2 className='text-xl font-semibold mb-3'>{category}</h2>
+          <ul className='space-y-2'>
+            {questions.filter((q) => q.category === category).length > 0 ? (
+              questions
+                .filter((q) => q.category === category)
+                .map((question) => (
+                  <li
+                    key={question.id}
+                    className='flex items-start justify-between bg-white rounded-lg p-3 shadow-sm'
+                  >
+                    <div className='flex items-start gap-2 flex-1 mr-4'>
                       <input
                         type='checkbox'
                         checked={question.completed}
                         onChange={(e) =>
                           handleCheck(question.id, e.target.checked)
                         }
-                        className='h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+                        className='mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
                       />
                       <span
                         className={
@@ -81,22 +128,46 @@ export default function Home() {
                       >
                         {question.question}
                       </span>
-                    </li>
-                  ))
-              ) : (
-                <p className='text-gray-500'>등록된 질문이 없습니다.</p>
-              )}
-            </ul>
-          </div>
-        ))
-      ) : (
-        <p className='text-gray-500'>등록된 질문이 없습니다.</p>
-      )}
+                    </div>
+                    <button
+                      onClick={() =>
+                        setDeleteModal({
+                          isOpen: true,
+                          questionId: question.id,
+                          questionText: question.question,
+                        })
+                      }
+                      className='text-gray-400 hover:text-red-500 transition-colors'
+                      aria-label='질문 삭제'
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </li>
+                ))
+            ) : (
+              <p className='text-gray-500'>등록된 질문이 없습니다.</p>
+            )}
+          </ul>
+        </div>
+      ))}
 
-      {/* 질문 추가 모달 */}
+      {/* 모달 */}
       <AddQuestionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+      />
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() =>
+          setDeleteModal({ isOpen: false, questionId: null, questionText: "" })
+        }
+        onConfirm={handleDelete}
+        questionText={deleteModal.questionText}
+      />
+      <InterviewStartModal
+        isOpen={isInterviewModalOpen}
+        onClose={() => setIsInterviewModalOpen(false)}
+        questions={questions}
       />
     </main>
   );
