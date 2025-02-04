@@ -12,6 +12,7 @@ import {
   completeInterview,
 } from "@/lib/firestore";
 import Comment from "./components/Comment";
+import { User } from "lucide-react";
 
 const QuestionList = ({ questions, onNext }) => {
   const questionsArray = Array.isArray(questions)
@@ -351,7 +352,16 @@ export default function InterviewDetail() {
 
   return (
     <div className='max-w-4xl mx-auto p-6'>
-      <h1 className='text-2xl font-bold mb-4'>면접 진행</h1>
+      <div className='flex justify-between items-center mb-4'>
+        <h1 className='text-2xl font-bold'>면접 진행</h1>
+        <button
+          onClick={() => router.push("/interview-list")}
+          className='p-2 rounded-full bg-gray-100 hover:bg-gray-200'
+          aria-label='면접 리스트로 돌아가기'
+        >
+          <User className='w-6 h-6 text-gray-700' />
+        </button>
+      </div>
       {currentStep === 1 && (
         <QuestionList
           questions={interview.questions}

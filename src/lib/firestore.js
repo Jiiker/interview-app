@@ -340,24 +340,17 @@ export const completeInterview = async (interviewId) => {
     const interview = interviewSnapshot.val();
     const questions = interview.questions || [];
 
-    // 모든 질문을 완료 상태로 변경
-    const updatedQuestions = questions.map((q) => ({
-      ...q,
-      completed: true,
-    }));
-
-    // 면접 질문 상태 업데이트
-    await update(interviewRef, {
-      isFinished: true,
-      questions: updatedQuestions,
-    });
-
-    // 전역 질문 리스트(`questions/` 경로)에서도 상태 업데이트
-    for (const question of updatedQuestions) {
+    // 전역 질문 리스트(`questions/` 경로)에서 상태 업데이트
+    for (const question of questions) {
       if (question.id) {
         await updateQuestionStatus(question.id, true);
       }
     }
+
+    // 면접 상태를 완료로 변경
+    await update(interviewRef, {
+      isFinished: true,
+    });
 
     console.log("면접 완료 처리 및 질문 상태 업데이트 완료:", interviewId);
     return true;
