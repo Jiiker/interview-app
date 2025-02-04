@@ -34,11 +34,11 @@ export const getQuestions = async () => {
         ...data,
       }));
     } else {
-      console.warn("No questions found in Realtime Database.");
+      console.warn("가져올 질문이 없습니다.");
       return [];
     }
   } catch (error) {
-    console.error("Error fetching questions:", error);
+    console.error("질문 가져오기 오류:", error);
     return [];
   }
 };

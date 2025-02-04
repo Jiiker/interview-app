@@ -110,7 +110,7 @@ const InterviewProgress = ({
   interview,
   onUpdateResult,
   onComplete,
-  onAddFeedback, // 🔥 피드백 추가 함수
+  onAddFeedback, // 피드백 추가 함수
 }) => {
   const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -119,11 +119,9 @@ const InterviewProgress = ({
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  // 🔥 배정된 면접자 리스트
+  // 배정된 면접자 리스트
   const assignedInterviewees = currentQuestion.interviewees || [];
   const feedbacks = currentQuestion.feedbacks || [];
-
-  console.log({ interview });
 
   const handleNext = async () => {
     await onUpdateResult(currentQuestion.id, {
@@ -137,7 +135,7 @@ const InterviewProgress = ({
     }
   };
 
-  // 🔥 피드백 추가 함수
+  // 피드백 추가 함수
   const handleFeedbackSubmit = async () => {
     if (!name.trim() || !content.trim()) return;
 
@@ -165,7 +163,7 @@ const InterviewProgress = ({
         </h3>
         <p className='text-xl mb-6'>{currentQuestion.question}</p>
 
-        {/* 🔥 배정된 면접자 섹션 복원 */}
+        {/* 배정된 면접자 섹션 복원 */}
         <div className='mb-4'>
           <h4 className='text-md font-medium mb-2'>배정된 면접자</h4>
           <div className='grid grid-cols-3 gap-2'>
@@ -192,7 +190,7 @@ const InterviewProgress = ({
           </div>
         </div>
 
-        {/* 🔥 피드백 입력 폼 */}
+        {/* 피드백 입력 폼 */}
         <div className='mb-4'>
           <h4 className='text-md font-medium mb-2'>피드백 작성</h4>
           <label className='block text-sm font-medium'>이름</label>
@@ -213,14 +211,14 @@ const InterviewProgress = ({
           />
 
           <button
-            onClick={handleFeedbackSubmit} // 🔥 피드백 추가
+            onClick={handleFeedbackSubmit} // 피드백 추가
             className='mt-3 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600'
           >
             작성 완료
           </button>
         </div>
 
-        {/* 🔥 기존 피드백 목록 */}
+        {/* 기존 피드백 목록 */}
         <div className='mb-4'>
           <h4 className='text-md font-medium mb-2'>작성된 피드백</h4>
           {feedbacks.length > 0 ? (
