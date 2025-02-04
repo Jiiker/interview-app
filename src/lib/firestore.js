@@ -218,10 +218,22 @@ export const updateInterviewStatus = async (interviewId, status) => {
 // 면접 면접자 업데이트 함수
 export const updateInterviewees = async (interviewId, interviewees) => {
   try {
-    await update(ref(db, `interviews/${interviewId}`), {
+    const interviewRef = ref(db, `interviews/${interviewId}`);
+    const interviewSnapshot = await get(interviewRef);
+
+    if (!interviewSnapshot.exists()) {
+      throw new Error("면접 정보를 찾을 수 없습니다.");
+    }
+
+    const interview = interviewSnapshot.val();
+    const currentQuestions = interview.questions || [];
+
+    await update(interviewRef, {
       interviewees: interviewees,
+      questions: currentQuestions,
       currentStep: 2,
     });
+
     return true;
   } catch (error) {
     console.error("면접자 업데이트 중 오류:", error);
@@ -231,6 +243,18 @@ export const updateInterviewees = async (interviewId, interviewees) => {
 
 // 면접자 배정 함수
 export const assignInterviewees = async (interviewId, interviewees) => {
+  const shuffleArray = (arr) => arr.sort(() => Math.random() - 0.5);
+
+  function hasOverlap(arr1, arr2) {
+    const minLength = Math.min(arr1.length, arr2.length);
+    for (let i = 0; i < minLength; i++) {
+      if (arr1[i] === arr2[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   try {
     const interviewRef = ref(db, `interviews/${interviewId}`);
     const interviewSnapshot = await get(interviewRef);
@@ -240,53 +264,51 @@ export const assignInterviewees = async (interviewId, interviewees) => {
     }
 
     const interview = interviewSnapshot.val();
-    const questions = interview.questions || [];
+    let questions = interview.questions || [];
 
-    const basicQuestion = questions.find((q) => q.category === "기본(경험)");
     const technicalQuestions = questions.filter(
       (q) => q.category !== "기본(경험)"
     );
 
-    if (!basicQuestion || technicalQuestions.length < 2) {
-      throw new Error("기본 질문 또는 기술 질문 개수가 부족합니다.");
+    const intervieweeIds = interviewees.map((i) => i.id);
+    if (intervieweeIds.length < 2) {
+      throw new Error("최소 두 명 이상의 면접자가 필요합니다.");
     }
 
-    const assignedQuestions = {};
+    // 면접자 목록을 무작위로 섞기
+    let shuffledInterviewees = shuffleArray([...intervieweeIds]);
 
-    // 모든 면접자에게 기본 질문 배정
-    assignedQuestions[basicQuestion.id] = {
-      ...basicQuestion,
-      interviewees: interviewees.map((i) => i.id),
-    };
+    // 각 질문마다 2명의 면접자 배정
+    const assignedQuestions = questions.map((question) => {
+      if (question.category === "기본(경험)") {
+        return {
+          ...question,
+          interviewees: intervieweeIds, // 기본 질문은 모든 면접자에게 배정
+        };
+      }
 
-    // 각 면접자에게 랜덤한 기술 질문 2개 배정
-    interviewees.forEach((interviewee) => {
-      const availableQuestions = technicalQuestions.filter(
-        (q) => !assignedQuestions[q.id]?.interviewees?.includes(interviewee.id)
-      );
-
-      if (availableQuestions.length < 2) return;
-
-      const selectedQuestions = availableQuestions
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 2);
-
-      selectedQuestions.forEach((q) => {
-        if (!assignedQuestions[q.id]) {
-          assignedQuestions[q.id] = { ...q, interviewees: [] };
+      // 기술 질문에 대해 2명씩 배정
+      if (technicalQuestions.some((q) => q.id === question.id)) {
+        if (shuffledInterviewees.length < 2) {
+          shuffledInterviewees = shuffleArray([...intervieweeIds]); // 재섞기
         }
-        assignedQuestions[q.id].interviewees.push(interviewee.id);
-      });
+        const assignedInterviewees = shuffledInterviewees.splice(0, 2);
+        return {
+          ...question,
+          interviewees: assignedInterviewees,
+        };
+      }
+
+      return question;
     });
 
-    const finalQuestions = Object.values(assignedQuestions);
-
+    // 데이터 업데이트
     await update(ref(db, `interviews/${interviewId}`), {
-      questions: finalQuestions,
+      questions: assignedQuestions,
       currentStep: 3,
     });
 
-    console.log("랜덤 질문 배정 완료:", finalQuestions);
+    console.log("랜덤 질문 배정 완료:", assignedQuestions);
     return true;
   } catch (error) {
     console.error("면접자 랜덤 질문 배정 중 오류:", error);
