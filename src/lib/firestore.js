@@ -79,6 +79,8 @@ export const deleteQuestion = async (id) => {
 export const createInterview = async (questions) => {
   try {
     const uncompletedQuestions = questions.filter((q) => !q.completed);
+
+    // 기본 질문 선택 보장
     const basicQuestions = uncompletedQuestions.filter(
       (q) => q.category === "기본(경험)"
     );
@@ -86,19 +88,28 @@ export const createInterview = async (questions) => {
       (q) => q.category !== "기본(경험)"
     );
 
+    // 기본 질문이 없으면 첫 번째 기술 질문을 기본 질문으로 사용
     const selectedBasicQuestion =
       basicQuestions.length > 0
         ? basicQuestions[Math.floor(Math.random() * basicQuestions.length)]
+        : technicalQuestions.length > 0
+        ? technicalQuestions.shift()
         : null;
 
+    // 기술 질문 6개 고정 (기본 질문 포함)
     const selectedTechnicalQuestions = technicalQuestions
       .sort(() => Math.random() - 0.5)
-      .slice(0, 5);
+      .slice(0, selectedBasicQuestion ? 5 : 6);
 
     const selectedQuestions = [
       ...(selectedBasicQuestion ? [selectedBasicQuestion] : []),
       ...selectedTechnicalQuestions,
     ];
+
+    // 질문이 6개 미만일 경우 추가 로직
+    while (selectedQuestions.length < 6 && technicalQuestions.length > 0) {
+      selectedQuestions.push(technicalQuestions.pop());
+    }
 
     const newInterviewRef = push(ref(db, "interviews"));
     const currentDate = new Date().toISOString().split("T")[0];
@@ -177,9 +188,10 @@ export const deleteInterview = async (interviewId) => {
   try {
     const interview = await getInterview(interviewId);
 
-    // 포함된 질문들 상태 초기화
     for (const question of interview.questions) {
-      await updateQuestionStatus(question.id, false);
+      if (question.id) {
+        await updateQuestionStatus(question.id, false);
+      }
     }
 
     await remove(ref(db, `interviews/${interviewId}`));
