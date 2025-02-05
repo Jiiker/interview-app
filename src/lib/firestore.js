@@ -27,9 +27,9 @@ export const addQuestion = async (category, question) => {
 // 모든 질문 가져오기 함수
 export const getQuestions = async () => {
   try {
-    const snapshot = await get(ref(db, "questions"));
-    if (snapshot.exists()) {
-      return Object.entries(snapshot.val()).map(([id, data]) => ({
+    const questions = await get(ref(db, "questions"));
+    if (questions.exists()) {
+      return Object.entries(questions.val()).map(([id, data]) => ({
         id,
         ...data,
       }));
@@ -245,16 +245,6 @@ export const updateInterviewees = async (interviewId, interviewees) => {
 export const assignInterviewees = async (interviewId, interviewees) => {
   const shuffleArray = (arr) => arr.sort(() => Math.random() - 0.5);
 
-  function hasOverlap(arr1, arr2) {
-    const minLength = Math.min(arr1.length, arr2.length);
-    for (let i = 0; i < minLength; i++) {
-      if (arr1[i] === arr2[i]) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   try {
     const interviewRef = ref(db, `interviews/${interviewId}`);
     const interviewSnapshot = await get(interviewRef);
@@ -265,53 +255,90 @@ export const assignInterviewees = async (interviewId, interviewees) => {
 
     const interview = interviewSnapshot.val();
     let questions = interview.questions || [];
-
-    const technicalQuestions = questions.filter(
-      (q) => q.category !== "기본(경험)"
-    );
-
     const intervieweeIds = interviewees.map((i) => i.id);
+
     if (intervieweeIds.length < 2) {
       throw new Error("최소 두 명 이상의 면접자가 필요합니다.");
     }
 
-    // 면접자 목록을 무작위로 섞기
-    let shuffledInterviewees = shuffleArray([...intervieweeIds]);
+    // 질문을 카테고리별로 분리
+    const basicQuestions = questions.filter((q) => q.category === "기본(경험)");
+    const technicalQuestions = questions.filter(
+      (q) => q.category !== "기본(경험)"
+    );
 
-    // 각 질문마다 2명의 면접자 배정
-    const assignedQuestions = questions.map((question) => {
-      if (question.category === "기본(경험)") {
-        return {
-          ...question,
-          interviewees: intervieweeIds, // 기본 질문은 모든 면접자에게 배정
-        };
-      }
-
-      // 기술 질문에 대해 2명씩 배정
-      if (technicalQuestions.some((q) => q.id === question.id)) {
-        if (shuffledInterviewees.length < 2) {
-          shuffledInterviewees = shuffleArray([...intervieweeIds]); // 재섞기
-        }
-        const assignedInterviewees = shuffledInterviewees.splice(0, 2);
-        return {
-          ...question,
-          interviewees: assignedInterviewees,
-        };
-      }
-
-      return question;
+    // 면접자별 배정된 질문 수를 추적
+    const intervieweeQuestionCount = {};
+    intervieweeIds.forEach((id) => {
+      intervieweeQuestionCount[id] = 0;
     });
+
+    // 가능한 모든 면접자 조합을 생성
+    let possiblePairs = [];
+    for (let i = 0; i < intervieweeIds.length; i++) {
+      for (let j = i + 1; j < intervieweeIds.length; j++) {
+        possiblePairs.push([intervieweeIds[i], intervieweeIds[j]]);
+      }
+    }
+
+    // 조합들을 섞기
+    possiblePairs = shuffleArray([...possiblePairs]);
+
+    // 기술 질문 배정
+    const assignedQuestions = technicalQuestions.map((question) => {
+      // 현재 가장 적게 배정된 면접자들이 포함된 페어 찾기
+      let selectedPair;
+
+      // 모든 페어를 순회하면서 가장 적절한 페어 찾기
+      let minTotalCount = Infinity;
+      for (const pair of possiblePairs) {
+        const totalCount =
+          intervieweeQuestionCount[pair[0]] + intervieweeQuestionCount[pair[1]];
+        if (totalCount < minTotalCount) {
+          minTotalCount = totalCount;
+          selectedPair = pair;
+        }
+      }
+
+      // 선택된 페어가 없다면 새로 섞어서 첫 번째 페어 선택
+      if (!selectedPair) {
+        possiblePairs = shuffleArray([...possiblePairs]);
+        selectedPair = possiblePairs[0];
+      }
+
+      // 선택된 면접자들의 질문 카운트 증가
+      selectedPair.forEach((id) => {
+        intervieweeQuestionCount[id]++;
+      });
+
+      return {
+        ...question,
+        interviewees: selectedPair,
+      };
+    });
+
+    // 기본 질문은 모든 면접자에게 배정
+    const finalQuestions = [
+      ...basicQuestions.map((question) => ({
+        ...question,
+        interviewees: intervieweeIds,
+      })),
+      ...assignedQuestions,
+    ];
+
+    // 최종 검증: 면접자별 배정된 질문 수 출력
+    console.log("면접자별 배정된 질문 수:", intervieweeQuestionCount);
 
     // 데이터 업데이트
     await update(ref(db, `interviews/${interviewId}`), {
-      questions: assignedQuestions,
+      questions: finalQuestions,
       currentStep: 3,
     });
 
-    console.log("랜덤 질문 배정 완료:", assignedQuestions);
+    console.log("질문 배정 완료:", finalQuestions);
     return true;
   } catch (error) {
-    console.error("면접자 랜덤 질문 배정 중 오류:", error);
+    console.error("면접자 질문 배정 중 오류:", error);
     throw error;
   }
 };
