@@ -6,7 +6,7 @@ import {
   getQuestions,
   updateQuestionStatus,
   deleteQuestion,
-  createInterview, // 면접 생성 함수 추가
+  createInterview,
 } from "@/lib/firestore";
 import { Trash2, User } from "lucide-react";
 import AddQuestionModal from "./components/AddQuestionModal";
@@ -66,10 +66,8 @@ export default function Home() {
         return;
       }
 
-      // 백엔드에서 질문을 자동 선택하여 면접을 생성 (질문 리스트 전달)
       const interviewId = await createInterview(questions);
 
-      // 생성된 면접 상세 페이지로 이동
       router.push(`/interview-list/${interviewId}`);
     } catch (error) {
       console.error("면접 생성 중 오류:", error);

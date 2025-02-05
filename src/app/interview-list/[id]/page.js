@@ -109,9 +109,8 @@ const IntervieweeInput = ({ onNext, onAddInterviewee, interviewees }) => {
 const InterviewProgress = ({
   questions,
   interview,
-  onUpdateResult,
   onComplete,
-  onAddFeedback, // 피드백 추가 함수
+  onAddFeedback,
 }) => {
   const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -125,10 +124,6 @@ const InterviewProgress = ({
   const feedbacks = currentQuestion.feedbacks || [];
 
   const handleNext = async () => {
-    await onUpdateResult(currentQuestion.id, {
-      completed: true,
-    });
-
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
     } else {
@@ -292,12 +287,13 @@ export default function InterviewDetail() {
 
   const handlePrepareInterview = async () => {
     try {
-      await updateInterviewees(interview.id, interviewees);
-      await assignInterviewees(interview.id, interviewees);
+      if (!interview.isFinished) {
+        await updateInterviewees(interview.id, interviewees);
+        await assignInterviewees(interview.id, interviewees);
 
-      const updatedInterview = await getInterview(interview.id);
-      setInterview(updatedInterview);
-
+        const updatedInterview = await getInterview(interview.id);
+        setInterview(updatedInterview);
+      }
       updateStep(3);
     } catch (error) {
       console.error("면접 준비 과정 중 오류:", error);
