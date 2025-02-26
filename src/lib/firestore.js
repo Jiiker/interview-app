@@ -240,7 +240,15 @@ export const updateInterviewees = async (interviewId, interviewees) => {
 
 // 면접자 배정 함수
 export const assignInterviewees = async (interviewId, interviewees) => {
-  const shuffleArray = (arr) => arr.sort(() => Math.random() - 0.5);
+  // 향상된 배열 섞기 함수 (Fisher-Yates 알고리즘)
+  const shuffleArray = (array) => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
 
   try {
     const interviewRef = ref(db, `interviews/${interviewId}`);
@@ -271,36 +279,42 @@ export const assignInterviewees = async (interviewId, interviewees) => {
     });
 
     // 가능한 모든 면접자 조합을 생성
-    let possiblePairs = [];
+    let allPossiblePairs = [];
     for (let i = 0; i < intervieweeIds.length; i++) {
       for (let j = i + 1; j < intervieweeIds.length; j++) {
-        possiblePairs.push([intervieweeIds[i], intervieweeIds[j]]);
+        allPossiblePairs.push([intervieweeIds[i], intervieweeIds[j]]);
       }
     }
 
-    // 조합들을 섞기
-    possiblePairs = shuffleArray([...possiblePairs]);
+    // 각 질문마다 독립적으로 면접자 조합을 섞어서 배정
+    const assignedTechnicalQuestions = technicalQuestions.map((question) => {
+      // 매 질문마다 조합을 새롭게 섞기
+      const shuffledPairs = shuffleArray([...allPossiblePairs]);
 
-    // 기술 질문 배정
-    const assignedQuestions = technicalQuestions.map((question) => {
-      // 현재 가장 적게 배정된 면접자들이 포함된 페어 찾기
+      // 조합들 중 가장 적게 질문이 배정된 면접자들이 포함된 페어 탐색
       let selectedPair;
+      let candidatePairs = [...shuffledPairs];
 
-      // 모든 페어를 순회하면서 가장 적절한 페어 찾기
-      let minTotalCount = Infinity;
-      for (const pair of possiblePairs) {
-        const totalCount =
-          intervieweeQuestionCount[pair[0]] + intervieweeQuestionCount[pair[1]];
-        if (totalCount < minTotalCount) {
-          minTotalCount = totalCount;
-          selectedPair = pair;
-        }
-      }
+      // 우선 가장 질문이 적은 면접자들 파악
+      const sortedInterviewees = Object.entries(intervieweeQuestionCount)
+        .sort((a, b) => a[1] - b[1])
+        .map((entry) => entry[0]);
 
-      // 선택된 페어가 없다면 새로 섞어서 첫 번째 페어 선택
-      if (!selectedPair) {
-        possiblePairs = shuffleArray([...possiblePairs]);
-        selectedPair = possiblePairs[0];
+      // 질문이 가장 적은 면접자가 포함된 페어들 중에서 랜덤 선택
+      const leastAssignedId = sortedInterviewees[0];
+      const pairsWithLeastAssigned = candidatePairs.filter((pair) =>
+        pair.includes(leastAssignedId)
+      );
+
+      if (pairsWithLeastAssigned.length > 0) {
+        // 적합한 페어들 중에서 완전히 랜덤하게 하나 선택
+        selectedPair =
+          pairsWithLeastAssigned[
+            Math.floor(Math.random() * pairsWithLeastAssigned.length)
+          ];
+      } else {
+        // 예상치 못한 상황이면 그냥 랜덤 페어 선택
+        selectedPair = shuffledPairs[0];
       }
 
       // 선택된 면접자들의 질문 카운트 증가
@@ -314,13 +328,19 @@ export const assignInterviewees = async (interviewId, interviewees) => {
       };
     });
 
-    // 기본 질문은 모든 면접자에게 배정
+    // 기술 질문 배열만 섞기 (기본 질문은 섞지 않음)
+    const shuffledTechnicalQuestions = shuffleArray(assignedTechnicalQuestions);
+
+    // 기본 질문은 모든 면접자에게 배정하고 마지막에 배치
+    const basicQuestionsWithAssignments = basicQuestions.map((question) => ({
+      ...question,
+      interviewees: intervieweeIds,
+    }));
+
+    // 기술 질문 먼저, 기본 질문은 항상 마지막에 오도록 배치
     const finalQuestions = [
-      ...assignedQuestions,
-      ...basicQuestions.map((question) => ({
-        ...question,
-        interviewees: intervieweeIds,
-      })),
+      ...shuffledTechnicalQuestions,
+      ...basicQuestionsWithAssignments,
     ];
 
     // 최종 검증: 면접자별 배정된 질문 수 출력
