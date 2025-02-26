@@ -114,10 +114,16 @@ const InterviewProgress = ({
 }) => {
   const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [name, setName] = useState(""); // 이름 입력 필드
-  const [content, setContent] = useState(""); // 내용 입력 필드
+
+  // 각 질문별 입력값을 저장할 객체 상태
+  const [inputValues, setInputValues] = useState({});
 
   const currentQuestion = questions[currentQuestionIndex];
+  const currentQuestionId = currentQuestion.id;
+
+  // 현재 질문에 대한 이름과 내용 값 가져오기
+  const name = inputValues[currentQuestionId]?.name || "";
+  const content = inputValues[currentQuestionId]?.content || "";
 
   // 배정된 면접자 리스트
   const assignedInterviewees = currentQuestion.interviewees || [];
@@ -131,20 +137,49 @@ const InterviewProgress = ({
     }
   };
 
+  // 이름 입력 핸들러
+  const handleNameChange = (e) => {
+    const newName = e.target.value;
+    setInputValues((prev) => ({
+      ...prev,
+      [currentQuestionId]: {
+        ...prev[currentQuestionId],
+        name: newName,
+      },
+    }));
+  };
+
+  // 내용 입력 핸들러
+  const handleContentChange = (e) => {
+    const newContent = e.target.value;
+    setInputValues((prev) => ({
+      ...prev,
+      [currentQuestionId]: {
+        ...prev[currentQuestionId],
+        content: newContent,
+      },
+    }));
+  };
+
   // 피드백 추가 함수
   const handleFeedbackSubmit = async () => {
     if (!name.trim() || !content.trim()) return;
 
     await onAddFeedback(currentQuestion.id, { name, content });
 
-    setName(""); // 입력 필드 초기화
-    setContent("");
+    // 피드백 제출 후 현재 질문의 입력값만 초기화
+    setInputValues((prev) => ({
+      ...prev,
+      [currentQuestionId]: {
+        name: "",
+        content: "",
+      },
+    }));
   };
 
   const handleCompleteInterview = async () => {
     try {
       await completeInterview(interview.id);
-
       router.push("/interview-list");
     } catch (error) {
       console.error("면접 완료 처리 중 오류:", error);
@@ -159,7 +194,7 @@ const InterviewProgress = ({
         </h3>
         <p className='text-xl mb-6'>{currentQuestion.question}</p>
 
-        {/* 배정된 면접자 섹션 복원 */}
+        {/* 배정된 면접자 섹션 */}
         <div className='mb-4'>
           <h4 className='text-md font-medium mb-2'>배정된 면접자</h4>
           <div className='grid grid-cols-3 gap-2'>
@@ -193,7 +228,7 @@ const InterviewProgress = ({
           <input
             type='text'
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={handleNameChange}
             placeholder='이름을 입력하세요.'
             className='w-full p-2 border rounded-lg'
           />
@@ -201,13 +236,13 @@ const InterviewProgress = ({
           <label className='block text-sm font-medium mt-4'>내용</label>
           <textarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={handleContentChange}
             placeholder='피드백을 입력하세요.'
             className='w-full p-2 border rounded-lg h-24'
           />
 
           <button
-            onClick={handleFeedbackSubmit} // 피드백 추가
+            onClick={handleFeedbackSubmit}
             className='mt-3 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600'
           >
             작성 완료
