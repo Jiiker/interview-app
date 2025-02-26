@@ -80,7 +80,7 @@ export const createInterview = async (questions) => {
   try {
     const uncompletedQuestions = questions.filter((q) => !q.completed);
 
-    // 기본 질문 선택 보장
+    // 기본 질문과 기술 질문 분리
     const basicQuestions = uncompletedQuestions.filter(
       (q) => q.category === "기본(경험)"
     );
@@ -88,27 +88,24 @@ export const createInterview = async (questions) => {
       (q) => q.category !== "기본(경험)"
     );
 
-    // 기본 질문이 없으면 첫 번째 기술 질문을 기본 질문으로 사용
-    const selectedBasicQuestion =
-      basicQuestions.length > 0
-        ? basicQuestions[Math.floor(Math.random() * basicQuestions.length)]
-        : technicalQuestions.length > 0
-        ? technicalQuestions.shift()
-        : null;
-
-    // 기술 질문 6개 고정 (기본 질문 포함)
+    // 기술 질문은 항상 최대 5개만 선택
     const selectedTechnicalQuestions = technicalQuestions
       .sort(() => Math.random() - 0.5)
-      .slice(0, selectedBasicQuestion ? 5 : 6);
+      .slice(0, Math.min(5, technicalQuestions.length));
 
-    const selectedQuestions = [
-      ...(selectedBasicQuestion ? [selectedBasicQuestion] : []),
-      ...selectedTechnicalQuestions,
-    ];
+    // 선택된 질문 배열 초기화
+    let selectedQuestions = [...selectedTechnicalQuestions];
 
-    // 질문이 6개 미만일 경우 추가 로직
-    while (selectedQuestions.length < 6 && technicalQuestions.length > 0) {
-      selectedQuestions.push(technicalQuestions.pop());
+    // 기본 질문이 있는 경우에만 마지막에 추가
+    if (basicQuestions.length > 0) {
+      const selectedBasicQuestion =
+        basicQuestions[Math.floor(Math.random() * basicQuestions.length)];
+      selectedQuestions.push(selectedBasicQuestion);
+    }
+
+    // 질문이 없는 경우 빈 배열 반환
+    if (selectedQuestions.length === 0) {
+      throw new Error("선택할 수 있는 질문이 없습니다.");
     }
 
     const newInterviewRef = push(ref(db, "interviews"));
@@ -319,11 +316,11 @@ export const assignInterviewees = async (interviewId, interviewees) => {
 
     // 기본 질문은 모든 면접자에게 배정
     const finalQuestions = [
+      ...assignedQuestions,
       ...basicQuestions.map((question) => ({
         ...question,
         interviewees: intervieweeIds,
       })),
-      ...assignedQuestions,
     ];
 
     // 최종 검증: 면접자별 배정된 질문 수 출력
